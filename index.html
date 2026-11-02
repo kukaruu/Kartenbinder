@@ -403,45 +403,76 @@ $("searchForm").addEventListener("submit", async (e) => {
     if (!list.length) { st.textContent = `Keine Karte zu „${raw}“ gefunden.${lang === "de" ? " Versuch es mit dem englischen Namen und EN." : ""}`; return; }
     st.textContent = `${list.length} Treffer${cards.length >= 120 ? " (die ersten 120)" : ""}`;
     const frag = document.createDocumentFragment();
-    const missing = [];
     for (const c of list) {
       const b = document.createElement("button");
       b.type = "button"; b.className = "res";
       const setName = sets[setIdOf(c.id)] || setIdOf(c.id);
-      b.innerHTML = `<div class="thumb">${c.image ? `<img loading="lazy" alt="">` : `<span class="noimg">Bild lädt …</span>`}</div><div class="n"></div><div class="s"></div>`;
-      if (c.image) b.querySelector("img").src = imgUrl(c.image);
+      b.innerHTML = `<div class="thumb"><i class="ph"></i></div><div class="n"></div><div class="s"></div>`;
+      cardImage(b.querySelector(".ph"), { id: c.id, localId: c.localId, image: c.image, lang });
       b.querySelector(".n").textContent = c.name;
       b.querySelector(".s").textContent = `${setName} · ${c.localId}`;
       b.addEventListener("click", () => cloud.requireLogin(() => openCard(c.id, lang)));
-      if (!c.image) missing.push([c.id, b.querySelector(".thumb")]);
       frag.appendChild(b);
     }
     $("results").appendChild(frag);
-    fillSearchImages(missing, lang);
   } catch (err) {
     st.className = "status err"; st.textContent = "Die Kartendatenbank ist gerade nicht erreichbar. Prüfe deine Internetverbindung und versuch es noch einmal.";
   }
 });
 
-// Treffer ohne deutschen Scan: Bild der englischen Ausgabe derselben Karte holen
-const enImageCache = {};
-async function fillSearchImages(missing, lang) {
-  const searchId = ($("results").dataset.search = String(Date.now()));
-  const queue = missing.slice();
-  async function worker() {
-    while (queue.length) {
-      const [id, thumb] = queue.shift();
-      if (!(id in enImageCache)) {
-        try { enImageCache[id] = lang === "en" ? "" : (await getJSON(`${API}/en/cards/${encodeURIComponent(id)}`)).image || ""; }
-        catch (e) { enImageCache[id] = ""; }
-      }
-      if ($("results").dataset.search !== searchId) return; // neue Suche gestartet
-      thumb.innerHTML = enImageCache[id] ? `<img alt="">` : `<span class="noimg">kein Bild</span>`;
-      if (enImageCache[id]) thumb.querySelector("img").src = imgUrl(enImageCache[id]);
-    }
+/* ---------- Kartenbilder aus mehreren Quellen ----------
+   Reihenfolge: TCGdex (DE, dann EN) → Limitless TCG (DE, dann EN; hat neue Sets früh)
+   → pokemontcg.io (viele ältere englische Sets) → TCGdex in weiteren Sprachen.
+   Lädt ein Bild nicht, kommt die nächste Quelle dran. */
+const LIMITLESS = "https://limitlesstcg.nyc3.cdn.digitaloceanspaces.com/tpci";
+// TCGdex-Set → [pokemontcg.io-Set, Limitless-Kürzel]. Nur Sets, deren Name (oder Kürzel und Kartenanzahl)
+// in beiden Quellen übereinstimmt, damit nie das Bild einer anderen Karte erscheint. Stand: 02.11.2026.
+const SET_MAP = {"base1":["base1","BS"],"base2":["base2","JU"],"basep":["basep",""],"base3":["base3","FO"],"base4":["base4","BS2"],"base5":["base5","TR"],"gym1":["gym1","G1"],"gym2":["gym2","G2"],"neo1":["neo1","N1"],"neo2":["neo2","N2"],"si1":["si1","SI"],"neo3":["neo3","N3"],"neo4":["neo4","N4"],"lc":["base6","LC"],"ecard1":["ecard1",""],"bog":["bp","BG"],"ecard2":["ecard2","E2"],"ecard3":["ecard3","E3"],"ex1":["ex1","RS"],"ex2":["ex2","SS"],"np":["np",""],"ex3":["ex3","DR"],"ex4":["ex4","MA"],"ex5":["ex5","HL"],"tk-ex-latia":["tk1a",""],"tk-ex-latio":["tk1b",""],"ex6":["ex6","RG"],"pop1":["pop1","P1"],"ex7":["ex7","TRR"],"ex8":["ex8","DX"],"ex9":["ex9","EM"],"pop2":["pop2","P2"],"ex10":["ex10","UF"],"ex11":["ex11","DS"],"ex12":["ex12","LM"],"tk-ex-p":["tk2a",""],"tk-ex-m":["tk2b",""],"pop3":["pop3","P3"],"ex13":["ex13","HP"],"pop4":["pop4","P4"],"ex14":["ex14","CG"],"ex15":["ex15","DF"],"ex16":["ex16","PK"],"pop5":["pop5","P5"],"dpp":["dpp",""],"dp1":["dp1","DP"],"dp2":["dp2","MT"],"pop6":["pop6","P6"],"dp3":["dp3","SW"],"dp4":["dp4","GE"],"pop7":["pop7","P7"],"dp5":["dp5","MD"],"dp6":["dp6","LA"],"pop8":["pop8","P8"],"dp7":["dp7","SF"],"pl1":["pl1","PL"],"pop9":["pop9","P9"],"pl2":["pl2","RR"],"pl3":["pl3","SV"],"pl4":["pl4","AR"],"ru1":["ru1","RM"],"hgss1":["hgss1","HS"],"hgssp":["hsp",""],"hgss2":["hgss2","UL"],"hgss3":["hgss3","UD"],"hgss4":["hgss4","TM"],"col1":["col1","CL"],"bw1":["bw1","BLW"],"bwp":["bwp",""],"2011bw":["mcd11",""],"bw2":["bw2","EPO"],"bw3":["bw3","NVI"],"bw4":["bw4","NXD"],"bw5":["bw5","DEX"],"2012bw":["mcd12",""],"bw6":["bw6","DRX"],"dv1":["dv1","DRV"],"bw7":["bw7","BCR"],"bw8":["bw8","PLS"],"bw9":["bw9","PLF"],"bw10":["bw10","PLB"],"xyp":["xyp",""],"bw11":["bw11","LTR"],"xy0":["xy0","KSS"],"xy1":["xy1","XY"],"xy2":["xy2","FLF"],"2014xy":["mcd14",""],"xy3":["xy3","FFI"],"xy4":["xy4","PHF"],"xy5":["xy5","PRC"],"dc1":["dc1","DCR"],"xy6":["xy6","ROS"],"xy7":["xy7","AOR"],"xy8":["xy8","BKT"],"2015xy":["mcd15",""],"xy9":["xy9","BKP"],"g1":["g1","GEN"],"xy10":["xy10","FCO"],"xy11":["xy11","STS"],"2016xy":["mcd16",""],"xy12":["xy12","EVO"],"smp":["smp",""],"sm1":["sm1","SUM"],"sm2":["sm2","GRI"],"2017sm":["mcd17",""],"sm3":["sm3","BUS"],"sm3.5":["sm35","SLG"],"sm4":["sm4","CIN"],"sm5":["sm5","UPR"],"sm6":["sm6","FLI"],"sm7":["sm7","CES"],"sm7.5":["sm75","DRM"],"2018sm":["mcd18",""],"sm8":["sm8","LOT"],"sm9":["sm9","TEU"],"det1":["det1","DET"],"sm10":["sm10","UNB"],"sm11":["sm11","UNM"],"sm115":["sm115","HIF"],"sma":["sma",""],"2019sm":["mcd19",""],"sm12":["sm12","CEC"],"swshp":["swshp",""],"swsh1":["swsh1",""],"swsh2":["swsh2","RCL"],"swsh3":["swsh3","DAA"],"swsh3.5":["swsh35","CPA"],"swsh4":["swsh4","VIV"],"2021swsh":["mcd21",""],"swsh4.5sv":["swsh45sv",""],"swsh4.5":["swsh45","SHF"],"swsh5":["swsh5","BST"],"swsh6":["swsh6","CRE"],"swsh7":["swsh7","EVS"],"cel25":["cel25","CEL"],"cel25cc":["cel25c",""],"swsh8":["swsh8","FST"],"swsh9tg":["swsh9tg",""],"swsh9":["swsh9","BRS"],"swsh10tg":["swsh10tg",""],"swsh10":["swsh10","ASR"],"swsh10.5":["pgo","PGO"],"2022swsh":["mcd22",""],"swsh11":["swsh11","LOR"],"swsh11tg":["swsh11tg",""],"swsh12tg":["swsh12tg",""],"swsh12":["swsh12","SIT"],"swsh12.5gg":["swsh12pt5gg",""],"swsh12.5":["swsh12pt5","CRZ"],"sv01":["sv1","SVI"],"sve":["","SVE"],"sv02":["sv2","PAL"],"sv03":["sv3","OBF"],"sv03.5":["sv3pt5","MEW"],"sv04":["sv4","PAR"],"sv04.5":["sv4pt5","PAF"],"sv05":["sv5","TEF"],"sv06":["sv6","TWM"],"sv06.5":["sv6pt5","SFA"],"sv07":["sv7","SCR"],"sv08":["sv8","SSP"],"sv08.5":["sv8pt5","PRE"],"sv09":["sv9","JTG"],"sv10":["sv10","DRI"],"sv10.5w":["rsv10pt5","WHT"],"sv10.5b":["zsv10pt5","BLK"],"mee":["","MEE"],"me01":["me1","MEG"],"me02":["me2","PFL"],"me02.5":["me2pt5","ASC"],"me03":["me3","POR"],"me04":["me4","CRI"],"me05":["me5","PBL"],"30th":["me55","30C"],"svp":["svp","SVP"],"mep":["","MEP"]};
+const serieCache = {};
+function serieOf(setId) {
+  if (!serieCache[setId]) {
+    serieCache[setId] = getJSON(`${API}/en/sets/${encodeURIComponent(setId)}`)
+      .then((s) => (s.serie && s.serie.id) || "").catch(() => "");
   }
-  await Promise.all([worker(), worker(), worker(), worker()]);
+  return serieCache[setId];
 }
+async function moreImageUrls(card, q) {
+  const setId = setIdOf(card.id), local = String(card.localId);
+  const numeric = /^\d+$/.test(local);
+  const [ptcg, abbr] = SET_MAP[setId] || ["", ""];
+  const urls = [];
+  if (abbr) {
+    const n = numeric ? local.padStart(3, "0") : local, size = q === "high" ? "LG" : "SM";
+    if (card.lang !== "en") urls.push(`${LIMITLESS}/${abbr}/${abbr}_${n}_R_DE_${size}.png`);
+    urls.push(`${LIMITLESS}/${abbr}/${abbr}_${n}_R_EN_${size}.png`);
+  }
+  if (ptcg) urls.push(`https://images.pokemontcg.io/${ptcg}/${numeric ? parseInt(local, 10) : local}${q === "high" ? "_hires" : ""}.png`);
+  // Gleiches Set bei TCGdex, nur in anderen Sprachen
+  const serie = await serieOf(setId);
+  if (serie) for (const l of ["en", "fr", "it", "es", "pt"]) urls.push(`https://assets.tcgdex.net/${l}/${serie}/${setId}/${local}/${q}.webp`);
+  return urls;
+}
+// Ersetzt den Platzhalter `ph` durch das erste Bild, das sich laden lässt
+function cardImage(ph, card, q = "low") {
+  const img = document.createElement("img");
+  img.alt = ""; img.loading = "lazy";
+  img._card = card; img._q = q; img._cands = [];
+  if (card.image) {
+    img._cands.push(imgUrl(card.image, q), imgUrl(card.image, q) + "?r=1");
+    if (card.image.includes("/de/")) img._cands.push(imgUrl(card.image.replace("/de/", "/en/"), q));
+  }
+  ph.replaceWith(img);
+  nextImage(img);
+}
+async function nextImage(img) {
+  if (!img._cands.length && !img._more) { img._more = true; img._cands = await moreImageUrls(img._card, img._q); }
+  const url = img._cands.shift();
+  if (url) img.src = url;
+  else img.replaceWith(Object.assign(document.createElement("span"), { className: "noimg", textContent: "kein Bild" }));
+}
+document.addEventListener("error", (e) => {
+  if (e.target.tagName === "IMG" && e.target._card) nextImage(e.target);
+}, true);
 
 /* ---------- Dialog ---------- */
 async function fetchCard(id, lang) {
@@ -464,8 +495,8 @@ async function openCard(id, lang, uid) {
   editing = { id, lang, uid, card: null };
   $("dName").textContent = it ? it.name : "Lade Karte …";
   $("dMeta").textContent = it ? `${it.setName} · Nr. ${it.localId}` : "";
-  $("dImg").innerHTML = it && it.image ? `<img alt="">` : "";
-  if (it && it.image) $("dImg").querySelector("img").src = imgUrl(it.image, "high");
+  $("dImg").innerHTML = it ? `<i class="ph"></i>` : "";
+  if (it) cardImage($("dImg").querySelector(".ph"), it, "high");
   $("dPrices").innerHTML = `<div class="status">Hole Cardmarket-Preise …</div>`;
   $("dSave").textContent = uid ? "Speichern" : "Zur Sammlung hinzufügen";
   $("dDelete").hidden = !uid;
@@ -486,8 +517,10 @@ async function openCard(id, lang, uid) {
   editing.card = card;
   $("dName").textContent = card.name;
   $("dMeta").textContent = [card.set?.name, "Nr. " + card.localId + (card.set?.cardCount?.official ? "/" + card.set.cardCount.official : ""), card.rarity].filter(Boolean).join(" · ");
-  $("dImg").innerHTML = card.image ? `<img alt="">` : `<div class="status" style="padding:20px">kein Bild</div>`;
-  if (card.image) $("dImg").querySelector("img").src = imgUrl(card.image, "high");
+  if (!it) {
+    $("dImg").innerHTML = `<i class="ph"></i>`;
+    cardImage($("dImg").querySelector(".ph"), { id: card.id, localId: card.localId, image: card.image, lang }, "high");
+  }
 
   const variants = variantsOf(card);
   $("fVariant").innerHTML = variants.map((v) => `<option value="${v}">${VARIANT_LABEL[v]}</option>`).join("");
@@ -576,7 +609,7 @@ function render() {
     }
     el.innerHTML = `
       <button class="pic" type="button" aria-label="${escapeHtml(it.name)} bearbeiten">
-        ${it.image ? `<img loading="lazy" alt="">` : `<span class="noimg">kein Bild</span>`}
+        <i class="ph"></i>
         ${it.qty > 1 ? `<span class="qty">×${it.qty}</span>` : ""}
         ${it.variant !== "normal" ? `<span class="var">${VARIANT_LABEL[it.variant] || it.variant}</span>` : ""}
       </button>
@@ -585,7 +618,7 @@ function render() {
         <div class="p">${fmt(unit)}</div>
         <div class="sub">${it.qty > 1 && unit != null ? "gesamt " + fmt(unit * it.qty) + "<br>" : ""}${trendHtml}</div>
       </div>`;
-    if (it.image) el.querySelector("img").src = imgUrl(it.image);
+    cardImage(el.querySelector(".ph"), it);
     el.querySelector(".name").textContent = it.name;
     el.querySelector(".meta").textContent = `${it.setName} · ${it.localId} · ${COND_LABEL[it.cond] || it.cond}${it.lang === "en" ? " · EN" : ""}`;
     el.querySelector(".pic").addEventListener("click", () => openCard(it.id, it.lang, it.uid));
@@ -659,18 +692,6 @@ async function loadSamples() {
   changed();
 }
 
-// Bild lädt nicht: einmal neu versuchen, dann den englischen Scan, dann PNG, sonst Platzhalter
-document.addEventListener("error", (e) => {
-  const img = e.target;
-  if (img.tagName !== "IMG") return;
-  const tries = +(img.dataset.tries || 0);
-  img.dataset.tries = tries + 1;
-  const base = img.src.split("?")[0];
-  if (tries === 0) setTimeout(() => (img.src = base + "?r=1"), 400);
-  else if (base.includes("assets.tcgdex.net/de/")) img.src = base.replace("/de/", "/en/");
-  else if (base.endsWith(".webp")) img.src = base.replace(/\.webp$/, ".png");
-  else img.replaceWith(Object.assign(document.createElement("span"), { className: "noimg", textContent: "kein Bild" }));
-}, true);
 
 // Alte Einträge ohne Bild nachträglich ergänzen
 async function fillMissingImages() {
