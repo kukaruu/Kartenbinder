@@ -6,7 +6,7 @@
 <title>Kartenbinder</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&family=Nunito:wght@700;800&display=swap">
 <style>
 /* Layout: Sammelordner — Kopfzeile mit Gesamtwert, links Kartensuche, rechts die eigene Sammlung als Ordnerseiten. */
 :root {
@@ -20,26 +20,35 @@
   --accent-ink: #ffffff;
   --gold: #f2c230;
   --gold-ink: #3a2c00;
+  --red: #e3350d;
+  --ball-white: #ffffff;
+  --ball-band: #1b2433;
   --up: #17834a;
   --down: #c0392b;
   --shadow: 0 1px 2px rgba(27,36,51,.08), 0 4px 14px rgba(27,36,51,.06);
+  --shadow-lift: 0 2px 4px rgba(27,36,51,.1), 0 12px 28px rgba(27,36,51,.14);
   --f-display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
   --f-body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
   --f-mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+  --f-round: "Nunito", "Segoe UI", system-ui, sans-serif;
   color-scheme: light;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     --bg: #11151c; --surface: #1a2029; --sunken: #232b36; --ink: #e8ecf2; --muted: #98a3b3;
     --line: #2d3644; --accent: #7aa2ff; --accent-ink: #0d1424; --gold: #f2c230; --gold-ink: #2b2000;
+    --red: #f0502b; --ball-white: #e8ecf2; --ball-band: #11151c;
     --up: #4cc27f; --down: #ff7a6b; --shadow: 0 1px 2px rgba(0,0,0,.4), 0 4px 14px rgba(0,0,0,.3);
+    --shadow-lift: 0 2px 6px rgba(0,0,0,.45), 0 14px 32px rgba(0,0,0,.45);
     color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
   --bg: #11151c; --surface: #1a2029; --sunken: #232b36; --ink: #e8ecf2; --muted: #98a3b3;
   --line: #2d3644; --accent: #7aa2ff; --accent-ink: #0d1424; --gold: #f2c230; --gold-ink: #2b2000;
+  --red: #f0502b; --ball-white: #e8ecf2; --ball-band: #11151c;
   --up: #4cc27f; --down: #ff7a6b; --shadow: 0 1px 2px rgba(0,0,0,.4), 0 4px 14px rgba(0,0,0,.3);
+  --shadow-lift: 0 2px 6px rgba(0,0,0,.45), 0 14px 32px rgba(0,0,0,.45);
   color-scheme: dark;
 }
 * { box-sizing: border-box; }
@@ -58,18 +67,29 @@ button, input, select { font: inherit; color: inherit; }
 .wrap { max-width: 1280px; margin: 0 auto; }
 .num { font-family: var(--f-mono); font-variant-numeric: tabular-nums; }
 
+/* Pokéball-Symbol */
+.ball { display: inline-block; flex: none; }
+#pokeball .top { fill: var(--red); }
+#pokeball .bottom { fill: var(--ball-white); }
+#pokeball .band, #pokeball .ring { fill: var(--ball-band); }
+#pokeball .core { fill: var(--ball-white); }
+
 /* Kopf */
+/* Name links, Sammlungswert in der Mitte */
 header.top {
-  display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 20px;
+  display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 20px;
   padding-block: 28px 20px; border-bottom: 1px solid var(--line);
 }
+@media (max-width: 700px) { header.top { grid-template-columns: minmax(0, 1fr); } }
+.brand { display: flex; align-items: center; gap: 12px; }
+.brand .ball { width: 40px; height: 40px; transition: transform .5s cubic-bezier(.3,1.6,.5,1); }
+.brand:hover .ball { transform: rotate(-25deg); }
 .brand h1 { font-family: var(--f-display); font-weight: 800; font-size: clamp(28px, 4vw, 40px); line-height: 1; margin: 0; letter-spacing: -.02em; }
 .brand p { margin: 6px 0 0; color: var(--muted); font-size: 14px; }
 .stats { display: flex; flex-wrap: wrap; gap: 28px; align-items: flex-end; }
 .stat .label { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
-.stat .value { font-family: var(--f-display); font-weight: 700; font-size: 22px; font-variant-numeric: tabular-nums; }
-.stat.big .value { font-size: clamp(30px, 4.4vw, 44px); line-height: 1.05; }
-.stat.big .value span { background: linear-gradient(transparent 62%, color-mix(in srgb, var(--gold) 70%, transparent) 62%); padding: 0 2px; }
+.stat .value { font-family: var(--f-round); font-weight: 800; font-size: 24px; font-variant-numeric: tabular-nums; }
+.stat.big .value { font-size: clamp(32px, 4.6vw, 46px); line-height: 1.05; }
 .toolbar { display: flex; flex-wrap: wrap; gap: 8px; padding-block: 14px; align-items: center; }
 .toolbar .note { color: var(--muted); font-size: 13px; margin-right: auto; }
 
@@ -86,20 +106,23 @@ header.top {
 main.grid { display: grid; grid-template-columns: minmax(300px, 380px) minmax(0, 1fr); gap: 24px; align-items: start; }
 @media (max-width: 900px) { main.grid { grid-template-columns: minmax(0, 1fr); } }
 
-section h2 { font-family: var(--f-display); font-weight: 700; font-size: 20px; margin: 0 0 10px; }
+section h2 { font-family: var(--f-display); font-weight: 700; font-size: 20px; margin: 0 0 10px; display: flex; align-items: center; gap: 8px; }
+section h2 .ball { width: 18px; height: 18px; }
+.coll-head h2 { margin: 0; }
 
 /* Suche */
 .search { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 16px; position: sticky; top: env(safe-area-inset-top, 0px); }
 @media (max-width: 900px) { .search { position: static; } }
 .search form { display: flex; gap: 8px; }
-.search input[type=search] { flex: 1; min-width: 0; border: 1px solid var(--line); background: var(--bg); border-radius: 8px; padding: 8px 10px; }
-.search select { border: 1px solid var(--line); background: var(--bg); border-radius: 8px; padding: 8px; }
+.field { border: 1px solid var(--line); background: var(--bg); border-radius: 8px; padding: 8px 10px; color: var(--ink); }
+.search input[type=search] { flex: 1; min-width: 0; }
+.search select { padding: 8px; }
 .hint { color: var(--muted); font-size: 12.5px; margin: 8px 0 0; }
 .results { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 10px; margin-top: 14px; max-height: 68vh; overflow-y: auto; padding: 2px; }
 @media (max-width: 900px) { .results { max-height: none; } }
 .res { border: 0; background: none; padding: 0; cursor: pointer; text-align: left; display: flex; flex-direction: column; gap: 4px; }
 .res .thumb { aspect-ratio: 63 / 88; width: 100%; border-radius: 6px; background: var(--sunken); overflow: hidden; display: grid; place-items: center; transition: transform .15s; }
-.res:hover .thumb { transform: translateY(-2px); box-shadow: var(--shadow); }
+.res:hover .thumb { transform: translateY(-2px) rotate(-1.5deg); box-shadow: var(--shadow); }
 .res img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .res .n { font-size: 12.5px; font-weight: 600; line-height: 1.25; }
 .res .s { font-size: 11.5px; color: var(--muted); line-height: 1.25; }
@@ -109,23 +132,28 @@ section h2 { font-family: var(--f-display); font-weight: 700; font-size: 20px; m
 /* Sammlung */
 .coll-head { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; margin-bottom: 12px; }
 .coll-head .controls { display: flex; flex-wrap: wrap; gap: 8px; }
-.coll-head input, .coll-head select { border: 1px solid var(--line); background: var(--surface); border-radius: 8px; padding: 6px 10px; font-size: 14px; }
+.coll-head .field { background: var(--surface); padding: 6px 10px; font-size: 14px; }
 .binder { display: grid; grid-template-columns: repeat(auto-fill, minmax(168px, 1fr)); gap: 14px; }
-.slot { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 10px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.slot { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 10px; display: flex; flex-direction: column; gap: 8px; min-width: 0; transition: transform .15s, box-shadow .15s; }
+.slot:hover { transform: translateY(-3px); box-shadow: var(--shadow-lift); }
+/* Holo- und Reverse-Karten bekommen einen bunten Streifen oben */
+.slot.foil { background: linear-gradient(90deg, #f2c230, #ff7eb6, #7aa2ff, #6fdc8c) top / 100% 4px no-repeat, var(--surface); }
 .slot .pic { position: relative; aspect-ratio: 63 / 88; border-radius: 7px; overflow: hidden; background: var(--sunken); display: grid; place-items: center; cursor: pointer; border: 0; padding: 0; }
 .slot .pic img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .slot .qty { position: absolute; top: 6px; right: 6px; background: var(--gold); color: var(--gold-ink); font: 600 12px/1 var(--f-mono); padding: 4px 6px; border-radius: 999px; }
 .slot .var { position: absolute; left: 6px; bottom: 6px; background: rgba(15,20,30,.78); color: #fff; font-size: 10.5px; letter-spacing: .04em; text-transform: uppercase; padding: 3px 6px; border-radius: 4px; }
 .slot .name { font-weight: 600; font-size: 14px; line-height: 1.25; overflow-wrap: anywhere; }
 .slot .meta { font-size: 12px; color: var(--muted); line-height: 1.3; overflow-wrap: anywhere; }
-.noimg { font-size: 12px; color: var(--muted); }
-.price-row { display: flex; justify-content: space-between; align-items: baseline; gap: 6px; border-top: 1px dashed var(--line); padding-top: 8px; }
+.noimg { font-size: 12px; color: var(--muted); padding: 8px; text-align: center; }
+.price-row { display: flex; justify-content: space-between; align-items: baseline; gap: 6px; border-top: 1px dashed var(--line); padding-top: 8px; margin-top: auto; }
 .price-row .p { font: 600 16px var(--f-mono); font-variant-numeric: tabular-nums; }
 .price-row .sub { font-size: 11.5px; color: var(--muted); text-align: right; }
 .trend-up { color: var(--up); } .trend-down { color: var(--down); }
-.empty { border: 2px dashed var(--line); border-radius: 14px; padding: 36px 20px; text-align: center; color: var(--muted); }
-.empty h3 { font-family: var(--f-display); color: var(--ink); margin: 0 0 6px; font-size: 20px; }
-.empty .btn { margin-top: 12px; }
+.empty { border: 2px dashed var(--line); border-radius: 14px; padding: 36px 20px; text-align: center; color: var(--muted); display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.empty .ball { width: 48px; height: 48px; margin-bottom: 4px; animation: wobble 2.4s ease-in-out infinite; }
+@keyframes wobble { 0%, 60%, 100% { transform: rotate(0); } 70% { transform: rotate(-14deg); } 80% { transform: rotate(10deg); } 90% { transform: rotate(-6deg); } }
+.empty h3 { font-family: var(--f-display); color: var(--ink); margin: 0; font-size: 20px; }
+.empty .btn { margin-top: 8px; }
 
 /* Dialog */
 dialog { border: 1px solid var(--line); border-radius: 14px; padding: 0; background: var(--surface); color: var(--ink); width: min(720px, calc(100vw - 32px)); max-height: calc(100vh - 32px); box-shadow: 0 20px 60px rgba(0,0,0,.3); }
@@ -154,6 +182,8 @@ dialog::backdrop { background: rgba(10,14,22,.55); }
 .sync.busy::before { background: var(--gold); }
 .sync.err::before { background: var(--down); }
 .login { padding: 22px; display: flex; flex-direction: column; gap: 12px; }
+.login-head { display: flex; align-items: center; gap: 10px; }
+.login-head .ball { width: 26px; height: 26px; }
 .login h3 { font-family: var(--f-display); font-size: 22px; margin: 0; }
 .login p { margin: 0; color: var(--muted); font-size: 14px; }
 .login input { border: 1px solid var(--line); background: var(--bg); border-radius: 8px; padding: 9px 10px; font-size: 15px; color: var(--ink); }
@@ -162,21 +192,33 @@ dialog::backdrop { background: rgba(10,14,22,.55); }
 .switch-row { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; }
 .linkbtn { border: 0; background: none; padding: 0; color: var(--accent); cursor: pointer; font-size: 13.5px; text-decoration: underline; text-underline-offset: 2px; }
 .toast { position: fixed; left: 50%; bottom: calc(20px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--ink); color: var(--bg); padding: 9px 14px; border-radius: 8px; font-size: 14px; box-shadow: var(--shadow); z-index: 20; }
-@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+@media (max-width: 600px) {
+  .stats { gap: 14px 28px; }
+  .stat.big { flex-basis: 100%; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
 </style>
 </head>
 <body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="pokeball" viewBox="0 0 100 100">
+    <path class="top" d="M50 4a46 46 0 0 1 46 46H4A46 46 0 0 1 50 4z"/>
+    <path class="bottom" d="M4 50h92a46 46 0 0 1-92 0z"/>
+    <rect class="band" x="3" y="45" width="94" height="10"/>
+    <circle class="ring" cx="50" cy="50" r="17"/>
+    <circle class="core" cx="50" cy="50" r="10"/>
+    <circle cx="50" cy="50" r="46" fill="none" class="band" style="fill:none;stroke:var(--ball-band);stroke-width:5"/>
+  </symbol>
+</svg>
 <div class="wrap">
   <header class="top">
     <div class="brand">
+      <svg class="ball" viewBox="0 0 100 100" aria-hidden="true"><use href="#pokeball"/></svg>
       <h1>Kartenbinder</h1>
-      <p>Deine Pokémon-Sammlung mit Cardmarket-Preisen</p>
     </div>
     <div class="stats">
-      <div class="stat big"><div class="label">Sammlungswert (Preistrend)</div><div class="value"><span id="statValue">0,00 €</span></div></div>
-      <div class="stat"><div class="label">Karten</div><div class="value" id="statCount">0</div></div>
-      <div class="stat"><div class="label">Verschiedene</div><div class="value" id="statUnique">0</div></div>
-    </div>
+      <div class="stat big"><div class="label">Sammlungswert</div><div class="value"><span class="foil-text" id="statValue">0,00 €</span></div></div>
+      <div class="stat"><div class="label">Karten</div><div class="value" id="statCount">0</div></div>    </div>
   </header>
 
   <div class="toolbar">
@@ -191,10 +233,10 @@ dialog::backdrop { background: rgba(10,14,22,.55); }
 
   <main class="grid">
     <section class="search" aria-labelledby="hSearch">
-      <h2 id="hSearch">Karte hinzufügen</h2>
+      <h2 id="hSearch"><svg class="ball" viewBox="0 0 100 100" aria-hidden="true"><use href="#pokeball"/></svg>Karte hinzufügen</h2>
       <form id="searchForm">
-        <input type="search" id="q" placeholder="z. B. Glurak oder Pikachu 25" autocomplete="off" aria-label="Kartenname">
-        <select id="lang" aria-label="Sprache">
+        <input class="field" type="search" id="q" placeholder="z. B. Glurak oder Pikachu 25" autocomplete="off" aria-label="Kartenname">
+        <select class="field" id="lang" aria-label="Sprache">
           <option value="de">DE</option>
           <option value="en">EN</option>
         </select>
@@ -207,10 +249,10 @@ dialog::backdrop { background: rgba(10,14,22,.55); }
 
     <section aria-labelledby="hColl">
       <div class="coll-head">
-        <h2 id="hColl">Meine Sammlung</h2>
+        <h2 id="hColl"><svg class="ball" viewBox="0 0 100 100" aria-hidden="true"><use href="#pokeball"/></svg>Meine Sammlung</h2>
         <div class="controls">
-          <input type="search" id="filter" placeholder="Sammlung filtern" aria-label="Sammlung filtern">
-          <select id="sort" aria-label="Sortierung">
+          <input class="field" type="search" id="filter" placeholder="Sammlung filtern" aria-label="Sammlung filtern">
+          <select class="field" id="sort" aria-label="Sortierung">
             <option value="value">Wert (hoch → niedrig)</option>
             <option value="name">Name (A → Z)</option>
             <option value="set">Set & Nummer</option>
@@ -220,6 +262,7 @@ dialog::backdrop { background: rgba(10,14,22,.55); }
       </div>
       <div id="binder" class="binder"></div>
       <div id="empty" class="empty" hidden>
+        <svg class="ball" viewBox="0 0 100 100" aria-hidden="true"><use href="#pokeball"/></svg>
         <h3>Dein Ordner ist noch leer</h3>
         <div>Suche links nach einer Karte und füge sie hinzu. Die Preise kommen direkt von Cardmarket.</div>
         <button class="btn" id="btnSample" type="button">Beispielkarten laden</button>
@@ -256,7 +299,7 @@ dialog::backdrop { background: rgba(10,14,22,.55); }
 
 <dialog id="dlgLogin">
   <form class="login" id="loginForm">
-    <h3 id="lTitle">Anmelden</h3>
+    <div class="login-head"><svg class="ball" viewBox="0 0 100 100" aria-hidden="true"><use href="#pokeball"/></svg><h3 id="lTitle">Anmelden</h3></div>
     <p id="lText"></p>
     <p id="lError" class="status err" hidden></p>
     <input type="email" id="lEmail" placeholder="E-Mail-Adresse" autocomplete="email" aria-label="E-Mail-Adresse">
@@ -369,7 +412,7 @@ $("searchForm").addEventListener("submit", async (e) => {
       if (c.image) b.querySelector("img").src = imgUrl(c.image);
       b.querySelector(".n").textContent = c.name;
       b.querySelector(".s").textContent = `${setName} · ${c.localId}`;
-      b.addEventListener("click", () => openCard(c.id, lang));
+      b.addEventListener("click", () => cloud.requireLogin(() => openCard(c.id, lang)));
       if (!c.image) missing.push([c.id, b.querySelector(".thumb")]);
       frag.appendChild(b);
     }
@@ -506,8 +549,6 @@ function render() {
   for (const it of items) { count += it.qty; const v = unitValue(itemPrice(it)); if (v != null) total += v * it.qty; }
   $("statValue").textContent = eur.format(total);
   $("statCount").textContent = count.toLocaleString("de-DE");
-  $("statUnique").textContent = items.length.toLocaleString("de-DE");
-
   const times = items.map((it) => state.prices[priceKey(it.lang, it.id)]?.cm?.updated).filter(Boolean).map((t) => +new Date(t));
   $("priceNote").textContent = times.length
     ? "Cardmarket-Preise vom " + new Date(Math.min(...times)).toLocaleString("de-DE", { dateStyle: "medium", timeStyle: "short" })
@@ -527,7 +568,7 @@ function render() {
   if (items.length && !list.length) { binder.innerHTML = `<div class="status">Keine Karte passt zu „${escapeHtml(f)}“.</div>`; return; }
   for (const it of list) {
     const p = itemPrice(it), unit = unitValue(p);
-    const el = document.createElement("article"); el.className = "slot";
+    const el = document.createElement("article"); el.className = "slot" + (it.variant === "normal" ? "" : " foil");
     let trendHtml = "";
     if (p && p.avg30 && p.trend) {
       const d = (p.trend - p.avg30) / p.avg30 * 100;
@@ -585,6 +626,10 @@ $("btnExport").addEventListener("click", () => {
   a.download = `pokemon-sammlung-${new Date().toISOString().slice(0, 10)}.json`;
   a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 });
+// Importieren erst nach dem Anmelden: Dateiauswahl sonst gar nicht öffnen
+$("importFile").addEventListener("click", (e) => {
+  if (!cloud.loggedInOrLocal()) { e.preventDefault(); cloud.requireLogin(() => $("importFile").click()); }
+});
 $("importFile").addEventListener("change", async (e) => {
   const file = e.target.files[0]; if (!file) return;
   try {
@@ -597,7 +642,8 @@ $("importFile").addEventListener("change", async (e) => {
 });
 
 /* ---------- Beispielkarten ---------- */
-$("btnSample").addEventListener("click", async () => {
+$("btnSample").addEventListener("click", () => cloud.requireLogin(loadSamples));
+async function loadSamples() {
   const sample = [["base1-4", "holo"], ["swsh3-136", "reverse"], ["sv03.5-025", "normal"], ["swsh4-44", "normal"]];
   $("btnSample").disabled = true;
   for (const [id, variant] of sample) {
@@ -611,7 +657,7 @@ $("btnSample").addEventListener("click", async () => {
   }
   $("btnSample").disabled = false;
   changed();
-});
+}
 
 // Bild lädt nicht: einmal neu versuchen, dann den englischen Scan, dann PNG, sonst Platzhalter
 document.addEventListener("error", (e) => {
@@ -764,6 +810,17 @@ const cloud = (() => {
   $("lToggle").addEventListener("click", () => setMode(mode === "login" ? "signup" : "login"));
   $("lForgot").addEventListener("click", () => setMode("forgot"));
   $("lCancel").addEventListener("click", () => $("dlgLogin").close());
+  $("dlgLogin").addEventListener("close", () => { if (!user) pending = null; });
+
+  // Karten hinzufügen geht nur angemeldet; die gewünschte Aktion läuft nach dem Login weiter
+  let pending = null;
+  function loggedInOrLocal() { return !enabled || !!user; }
+  function requireLogin(action) {
+    if (loggedInOrLocal()) { action(); return; }
+    pending = action;
+    setMode("login", "Melde dich an oder erstelle ein Konto, um Karten zu deiner Sammlung hinzuzufügen.");
+    $("dlgLogin").showModal();
+  }
   $("loginForm").addEventListener("submit", async (e) => {
     e.preventDefault();
     const email = $("lEmail").value.trim(), password = $("lPass").value;
@@ -781,8 +838,10 @@ const cloud = (() => {
       setMode("login", `Fast geschafft: Bestätige dein Konto über den Link, den wir an ${email} geschickt haben. Danach kannst du dich hier anmelden.`);
       $("lEmail").value = email; return;
     }
+    const next = pending; pending = null;
     $("dlgLogin").close();
     toast(mode === "newpass" ? "Neues Passwort gespeichert" : mode === "signup" ? "Konto erstellt" : "Angemeldet");
+    if (next) setTimeout(next, 300);
   });
   $("lLogout").addEventListener("click", async () => {
     await sb.auth.signOut();
@@ -792,7 +851,7 @@ const cloud = (() => {
     $("dlgLogin").close(); toast("Abgemeldet");
   });
 
-  return { push };
+  return { push, requireLogin, loggedInOrLocal };
 })();
 
 render();
