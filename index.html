@@ -158,6 +158,9 @@ dialog::backdrop { background: rgba(10,14,22,.55); }
 .login p { margin: 0; color: var(--muted); font-size: 14px; }
 .login input { border: 1px solid var(--line); background: var(--bg); border-radius: 8px; padding: 9px 10px; font-size: 15px; color: var(--ink); }
 #dlgLogin { width: min(440px, calc(100vw - 32px)); }
+.login .status { padding: 0; }
+.switch-row { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; }
+.linkbtn { border: 0; background: none; padding: 0; color: var(--accent); cursor: pointer; font-size: 13.5px; text-decoration: underline; text-underline-offset: 2px; }
 .toast { position: fixed; left: 50%; bottom: calc(20px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--ink); color: var(--bg); padding: 9px 14px; border-radius: 8px; font-size: 14px; box-shadow: var(--shadow); z-index: 20; }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 </style>
@@ -254,12 +257,18 @@ dialog::backdrop { background: rgba(10,14,22,.55); }
 <dialog id="dlgLogin">
   <form class="login" id="loginForm">
     <h3 id="lTitle">Anmelden</h3>
-    <p id="lText">Mit deiner E-Mail-Adresse anmelden. Du bekommst einen Link, mit dem du dich ohne Passwort einloggst. Danach ist deine Sammlung auf allen Geräten gleich.</p>
-    <input type="email" id="lEmail" required placeholder="name@beispiel.de" autocomplete="email" aria-label="E-Mail-Adresse">
+    <p id="lText"></p>
+    <p id="lError" class="status err" hidden></p>
+    <input type="email" id="lEmail" placeholder="E-Mail-Adresse" autocomplete="email" aria-label="E-Mail-Adresse">
+    <input type="password" id="lPass" placeholder="Passwort" autocomplete="current-password" aria-label="Passwort" minlength="6">
+    <div class="switch-row" id="lSwitch">
+      <button class="linkbtn" id="lToggle" type="button">Noch kein Konto? Jetzt registrieren</button>
+      <button class="linkbtn" id="lForgot" type="button">Passwort vergessen?</button>
+    </div>
     <div class="dlg-actions">
       <button class="btn ghost left" id="lLogout" type="button" hidden>Abmelden</button>
       <button class="btn" id="lCancel" type="button">Schließen</button>
-      <button class="btn primary" id="lSend" type="submit">Link senden</button>
+      <button class="btn primary" id="lSend" type="submit">Anmelden</button>
     </div>
   </form>
 </dialog>
@@ -351,22 +360,45 @@ $("searchForm").addEventListener("submit", async (e) => {
     if (!list.length) { st.textContent = `Keine Karte zu „${raw}“ gefunden.${lang === "de" ? " Versuch es mit dem englischen Namen und EN." : ""}`; return; }
     st.textContent = `${list.length} Treffer${cards.length >= 120 ? " (die ersten 120)" : ""}`;
     const frag = document.createDocumentFragment();
+    const missing = [];
     for (const c of list) {
       const b = document.createElement("button");
       b.type = "button"; b.className = "res";
       const setName = sets[setIdOf(c.id)] || setIdOf(c.id);
-      b.innerHTML = `<div class="thumb">${c.image ? `<img loading="lazy" alt="">` : `<span class="s">kein Bild</span>`}</div><div class="n"></div><div class="s"></div>`;
+      b.innerHTML = `<div class="thumb">${c.image ? `<img loading="lazy" alt="">` : `<span class="noimg">Bild lädt …</span>`}</div><div class="n"></div><div class="s"></div>`;
       if (c.image) b.querySelector("img").src = imgUrl(c.image);
       b.querySelector(".n").textContent = c.name;
       b.querySelector(".s").textContent = `${setName} · ${c.localId}`;
       b.addEventListener("click", () => openCard(c.id, lang));
+      if (!c.image) missing.push([c.id, b.querySelector(".thumb")]);
       frag.appendChild(b);
     }
     $("results").appendChild(frag);
+    fillSearchImages(missing, lang);
   } catch (err) {
     st.className = "status err"; st.textContent = "Die Kartendatenbank ist gerade nicht erreichbar. Prüfe deine Internetverbindung und versuch es noch einmal.";
   }
 });
+
+// Treffer ohne deutschen Scan: Bild der englischen Ausgabe derselben Karte holen
+const enImageCache = {};
+async function fillSearchImages(missing, lang) {
+  const searchId = ($("results").dataset.search = String(Date.now()));
+  const queue = missing.slice();
+  async function worker() {
+    while (queue.length) {
+      const [id, thumb] = queue.shift();
+      if (!(id in enImageCache)) {
+        try { enImageCache[id] = lang === "en" ? "" : (await getJSON(`${API}/en/cards/${encodeURIComponent(id)}`)).image || ""; }
+        catch (e) { enImageCache[id] = ""; }
+      }
+      if ($("results").dataset.search !== searchId) return; // neue Suche gestartet
+      thumb.innerHTML = enImageCache[id] ? `<img alt="">` : `<span class="noimg">kein Bild</span>`;
+      if (enImageCache[id]) thumb.querySelector("img").src = imgUrl(enImageCache[id]);
+    }
+  }
+  await Promise.all([worker(), worker(), worker(), worker()]);
+}
 
 /* ---------- Dialog ---------- */
 async function fetchCard(id, lang) {
@@ -683,38 +715,74 @@ const cloud = (() => {
       const changedUser = (next && next.id) !== (user && user.id);
       user = next; account();
       if (changedUser && user) pull();
+      // Über den Link aus "Passwort vergessen" gekommen
+      if (event === "PASSWORD_RECOVERY") setTimeout(() => { setMode("newpass"); $("dlgLogin").showModal(); });
     });
     document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") checkNewer(); });
   }
   account();
 
-  /* Login-Dialog */
-  $("btnAccount").addEventListener("click", () => {
-    $("lTitle").textContent = user ? "Dein Konto" : "Anmelden";
-    $("lText").textContent = user
+  /* Login-Dialog: Anmelden, Registrieren, Passwort vergessen, neues Passwort setzen */
+  const MODES = {
+    login:   { title: "Anmelden", text: "Melde dich an, dann ist deine Sammlung auf allen Geräten gleich.", email: true, pass: true, send: "Anmelden", toggle: "Noch kein Konto? Jetzt registrieren", forgot: true },
+    signup:  { title: "Konto erstellen", text: "Wähle ein Passwort mit mindestens 6 Zeichen. Jede Person hat ihre eigene Sammlung, die nur sie sieht.", email: true, pass: true, send: "Konto erstellen", toggle: "Schon ein Konto? Anmelden", forgot: false },
+    forgot:  { title: "Passwort vergessen", text: "Gib deine E-Mail-Adresse ein. Du bekommst einen Link, mit dem du ein neues Passwort festlegst.", email: true, pass: false, send: "Link senden", toggle: "Zurück zur Anmeldung", forgot: false },
+    newpass: { title: "Neues Passwort", text: "Leg ein neues Passwort mit mindestens 6 Zeichen fest.", email: false, pass: true, send: "Passwort speichern", toggle: "", forgot: false },
+    account: { title: "Dein Konto", text: "", email: false, pass: false, send: "", toggle: "", forgot: false },
+  };
+  let mode = "login";
+  function setMode(m, msg) {
+    mode = m; const c = MODES[m];
+    $("lTitle").textContent = c.title;
+    $("lText").textContent = m === "account"
       ? `Angemeldet als ${user.email}. Deine Sammlung wird online gespeichert und ist auf allen Geräten gleich, auf denen du dich anmeldest.`
-      : "Mit deiner E-Mail-Adresse anmelden. Du bekommst einen Link, mit dem du dich ohne Passwort einloggst. Danach ist deine Sammlung auf allen Geräten gleich.";
-    $("lEmail").hidden = !!user; $("lSend").hidden = !!user; $("lLogout").hidden = !user;
-    $("lEmail").required = !user;
-    $("dlgLogin").showModal();
-  });
+      : msg || c.text;
+    $("lError").hidden = true;
+    $("lEmail").hidden = !c.email; $("lEmail").required = c.email;
+    $("lPass").hidden = !c.pass; $("lPass").required = c.pass;
+    $("lPass").autocomplete = m === "login" ? "current-password" : "new-password";
+    $("lPass").value = "";
+    $("lSend").hidden = !c.send; $("lSend").textContent = c.send;
+    $("lToggle").hidden = !c.toggle; $("lToggle").textContent = c.toggle;
+    $("lForgot").hidden = !c.forgot;
+    $("lSwitch").hidden = !c.toggle && !c.forgot;
+    $("lLogout").hidden = m !== "account";
+  }
+  function showError(error) {
+    const m = error.message || "";
+    $("lError").textContent =
+      /invalid login credentials/i.test(m) ? "E-Mail-Adresse oder Passwort stimmen nicht." :
+      /already registered|already exists/i.test(m) ? "Für diese E-Mail-Adresse gibt es schon ein Konto. Melde dich an oder setz dein Passwort zurück." :
+      /email not confirmed/i.test(m) ? "Diese E-Mail-Adresse ist noch nicht bestätigt. Schau in dein Postfach." :
+      /at least|weak|password/i.test(m) && mode !== "login" ? "Das Passwort ist zu kurz. Nimm mindestens 6 Zeichen." :
+      /rate|seconds|too many/i.test(m) ? "Gerade waren es zu viele Versuche. Warte ein paar Minuten und versuch es dann noch einmal." :
+      /fetch|network/i.test(m) ? "Keine Verbindung zum Online-Speicher. Prüfe deine Internetverbindung." :
+      "Das hat nicht geklappt: " + m;
+    $("lError").hidden = false;
+  }
+  $("btnAccount").addEventListener("click", () => { setMode(user ? "account" : "login"); $("dlgLogin").showModal(); });
+  $("lToggle").addEventListener("click", () => setMode(mode === "login" ? "signup" : "login"));
+  $("lForgot").addEventListener("click", () => setMode("forgot"));
   $("lCancel").addEventListener("click", () => $("dlgLogin").close());
   $("loginForm").addEventListener("submit", async (e) => {
     e.preventDefault();
-    const email = $("lEmail").value.trim();
-    $("lSend").disabled = true;
-    const { error } = await sb.auth.signInWithOtp({ email, options: { emailRedirectTo: location.origin + location.pathname } });
+    const email = $("lEmail").value.trim(), password = $("lPass").value;
+    $("lSend").disabled = true; $("lError").hidden = true;
+    let res;
+    if (mode === "login") res = await sb.auth.signInWithPassword({ email, password });
+    else if (mode === "signup") res = await sb.auth.signUp({ email, password, options: { emailRedirectTo: location.origin + location.pathname } });
+    else if (mode === "forgot") res = await sb.auth.resetPasswordForEmail(email, { redirectTo: location.origin + location.pathname });
+    else if (mode === "newpass") res = await sb.auth.updateUser({ password });
     $("lSend").disabled = false;
-    if (error) {
-      $("lText").textContent = /fetch|network/i.test(error.message)
-        ? "Keine Verbindung zum Online-Speicher. Prüfe deine Internetverbindung und die Adresse in config.js."
-        : /rate|seconds/i.test(error.message)
-          ? "Es wurden gerade zu viele Links verschickt. Warte ein paar Minuten und versuch es dann noch einmal."
-          : "Der Link konnte nicht gesendet werden: " + error.message;
-      return;
+    if (res.error) { showError(res.error); return; }
+    if (mode === "forgot") { setMode("login", `Wir haben dir einen Link an ${email} geschickt. Öffne ihn, um ein neues Passwort festzulegen.`); $("lEmail").value = email; return; }
+    if (mode === "signup" && !res.data.session) {
+      // In Supabase ist "Confirm email" noch an: erst Mail bestätigen
+      setMode("login", `Fast geschafft: Bestätige dein Konto über den Link, den wir an ${email} geschickt haben. Danach kannst du dich hier anmelden.`);
+      $("lEmail").value = email; return;
     }
-    $("lText").textContent = `Wir haben dir einen Link an ${email} geschickt. Öffne ihn auf diesem Gerät, dann bist du angemeldet.`;
-    $("lEmail").hidden = true; $("lSend").hidden = true;
+    $("dlgLogin").close();
+    toast(mode === "newpass" ? "Neues Passwort gespeichert" : mode === "signup" ? "Konto erstellt" : "Angemeldet");
   });
   $("lLogout").addEventListener("click", async () => {
     await sb.auth.signOut();
