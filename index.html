@@ -77,7 +77,7 @@ button, input, select { font: inherit; color: inherit; }
 /* Kopf */
 /* Name links, Sammlungswert in der Mitte */
 header.top {
-  display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 20px;
+  display: grid; grid-template-columns: minmax(0, 5fr) auto minmax(0, 1fr); align-items: center; gap: 20px;
   padding-block: 28px 20px; border-bottom: 1px solid var(--line);
 }
 @media (max-width: 700px) { header.top { grid-template-columns: minmax(0, 1fr); } }
@@ -86,10 +86,9 @@ header.top {
 .brand:hover .ball { transform: rotate(-25deg); }
 .brand h1 { font-family: var(--f-display); font-weight: 800; font-size: clamp(28px, 4vw, 40px); line-height: 1; margin: 0; letter-spacing: -.02em; }
 .brand p { margin: 6px 0 0; color: var(--muted); font-size: 14px; }
-.stats { display: flex; flex-wrap: wrap; gap: 28px; align-items: flex-end; }
+.stats { display: flex; flex-wrap: wrap; gap: 56px; align-items: flex-end; }
 .stat .label { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
-.stat .value { font-family: var(--f-round); font-weight: 800; font-size: 24px; font-variant-numeric: tabular-nums; }
-.stat.big .value { font-size: clamp(32px, 4.6vw, 46px); line-height: 1.05; }
+.stat .value { font-family: var(--f-round); font-weight: 800; font-size: clamp(32px, 4.6vw, 46px); line-height: 1.05; font-variant-numeric: tabular-nums; }
 .toolbar { display: flex; flex-wrap: wrap; gap: 8px; padding-block: 14px; align-items: center; }
 .toolbar .note { color: var(--muted); font-size: 13px; margin-right: auto; }
 
@@ -225,17 +224,13 @@ dialog::backdrop { background: rgba(10,14,22,.55); }
     <span class="note" id="priceNote">Noch keine Preise geladen.</span>
     <span class="sync" id="syncState" hidden></span>
     <button class="btn" id="btnAccount" type="button" hidden>Anmelden</button>
-    <button class="btn" id="btnRefresh" type="button">Preise aktualisieren</button>
-    <button class="btn" id="btnExport" type="button">Exportieren</button>
-    <label class="btn" for="importFile">Importieren</label>
-    <input type="file" id="importFile" accept="application/json,.json" hidden>
-  </div>
+    <button class="btn" id="btnRefresh" type="button">Preise aktualisieren</button>  </div>
 
   <main class="grid">
     <section class="search" aria-labelledby="hSearch">
       <h2 id="hSearch"><svg class="ball" viewBox="0 0 100 100" aria-hidden="true"><use href="#pokeball"/></svg>Karte hinzufügen</h2>
       <form id="searchForm">
-        <input class="field" type="search" id="q" placeholder="z. B. Glurak oder Pikachu 25" autocomplete="off" aria-label="Kartenname">
+        <input class="field" type="search" id="q" autocomplete="off" aria-label="Kartenname">
         <select class="field" id="lang" aria-label="Sprache">
           <option value="de">DE</option>
           <option value="en">EN</option>
@@ -344,7 +339,7 @@ function load() {
 }
 function save() {
   try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); }
-  catch (e) { toast("Speichern im Browser fehlgeschlagen. Exportiere deine Sammlung als Sicherung."); }
+  catch (e) {}  // Browser-Zwischenspeicher voll oder gesperrt: die Online-Speicherung läuft trotzdem
 }
 // Nach jeder Änderung der Sammlung (nicht bei reinen Preis-Updates)
 function changed() { save(); render(); cloud.push(); }
@@ -651,29 +646,6 @@ async function refreshPrices(onlyStale) {
 }
 $("btnRefresh").addEventListener("click", () => refreshPrices(false));
 
-/* ---------- Export / Import ---------- */
-$("btnExport").addEventListener("click", () => {
-  const data = JSON.stringify({ app: "kartenbinder", version: 1, exportedAt: new Date().toISOString(), items: state.items }, null, 2);
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(new Blob([data], { type: "application/json" }));
-  a.download = `pokemon-sammlung-${new Date().toISOString().slice(0, 10)}.json`;
-  a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-});
-// Importieren erst nach dem Anmelden: Dateiauswahl sonst gar nicht öffnen
-$("importFile").addEventListener("click", (e) => {
-  if (!cloud.loggedInOrLocal()) { e.preventDefault(); cloud.requireLogin(() => $("importFile").click()); }
-});
-$("importFile").addEventListener("change", async (e) => {
-  const file = e.target.files[0]; if (!file) return;
-  try {
-    const data = JSON.parse(await file.text());
-    if (!Array.isArray(data.items)) throw new Error();
-    state.items = data.items; changed(); toast(`${data.items.length} Einträge importiert`);
-    refreshPrices(true);
-  } catch (err) { toast("Diese Datei ist kein Kartenbinder-Export."); }
-  e.target.value = "";
-});
-
 /* ---------- Beispielkarten ---------- */
 $("btnSample").addEventListener("click", () => cloud.requireLogin(loadSamples));
 async function loadSamples() {
@@ -718,7 +690,7 @@ const cloud = (() => {
   function account() {
     const b = $("btnAccount"); b.hidden = !enabled;
     b.textContent = user ? user.email : "Anmelden";
-    if (!user) status(enabled ? "Nur auf diesem Gerät gespeichert" : "", "");
+    if (!user) status("", "");
   }
   // Beim ersten Login auf einem Gerät: lokale und Online-Karten zusammenführen
   function merge(local, remote) {
